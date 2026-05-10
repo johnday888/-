@@ -1,0 +1,15 @@
+# 忽略虚拟环境
+.venv/
+
+# 忽略 Python 缓存
+**/__pycache__/
+*.pyc
+
+# 忽略打包文件
+build/
+dist/
+*.spec
+
+# 忽略音频文件（版权保护）
+*.mp3
+*.MP3
