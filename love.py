@@ -25,25 +25,26 @@ PINK_FADE = [
 
 
 def resource_path(relative_path):
-    """
-    智能路径查找：
-    1. 优先找打包在内部的资源
-    2. 找不到则找 .exe 同级目录下的资源
-    3. 如果是脚本运行，找 .py 同级目录
-    """
-    # 如果是打包后的环境
     if hasattr(sys, '_MEIPASS'):
-        # 先尝试内部路径（临时文件夹）
-        internal_path = os.path.join(sys._MEIPASS, relative_path)
-        if os.path.exists(internal_path):
-            return internal_path
+        base_path = sys._MEIPASS
+    elif getattr(sys, 'frozen', False):
+        base_path = os.path.dirname(sys.executable)
+    else:
+        base_path = os.path.dirname(os.path.abspath(__file__))
 
-        # 如果内部没有（没打包进去），则强制指向 .exe 所在的外部目录
-        # sys.executable 获取的就是 love.exe 的完整路径
-        return os.path.join(os.path.dirname(sys.executable), relative_path)
+    target_path = os.path.join(base_path, relative_path)
 
-    # 如果是直接运行 .py 脚本
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
+    if not os.path.exists(target_path):
+        try:
+            files = os.listdir(base_path)
+            for f in files:
+                if f.lower() == relative_path.lower():
+                    target_path = os.path.join(base_path, f)
+                    break
+        except:
+            pass
+
+    return target_path
 
 
 def heart_function(t, shrink_ratio: float = IMAGE_ENLARGE):
@@ -146,8 +147,8 @@ class ConfessionApp:
         # 1. 初始化并加载音乐
         pygame.mixer.init()
         try:
-            # 确保你的音乐文件名是 love.MP3
-            pygame.mixer.music.load(resource_path("love.MP3"))
+            # 确保你的音乐文件名是 love.mp3
+            pygame.mixer.music.load(resource_path("love.mp3"))
         except Exception as e:
             print(f"未能加载音乐文件: {e}")
 
