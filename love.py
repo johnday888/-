@@ -4,6 +4,7 @@ import os
 import sys
 from math import sin, cos, pi, log
 from tkinter import *
+import tkinter.messagebox as messagebox  # 引入弹窗，方便万一出错时看到原因
 
 # --- 基础配置 ---
 CANVAS_WIDTH = 840
@@ -25,26 +26,40 @@ PINK_FADE = [
 
 
 def resource_path(relative_path):
-    if hasattr(sys, '_MEIPASS'):
-        base_path = sys._MEIPASS
-    elif getattr(sys, 'frozen', False):
-        base_path = os.path.dirname(sys.executable)
+    """雷达级路径扫描：一次性解决所有移动、打包、大小写问题"""
+    paths_to_check = []
+
+    # 1. 如果是打包后的 EXE
+    if getattr(sys, 'frozen', False):
+        # 优先找 EXE 文件所在的同级目录（即你放 love.mp3 的地方）
+        paths_to_check.append(os.path.dirname(sys.executable))
+        # 备用：找临时解压目录
+        if hasattr(sys, '_MEIPASS'):
+            paths_to_check.append(sys._MEIPASS)
+    # 2. 如果是直接运行 .py 脚本
     else:
-        base_path = os.path.dirname(os.path.abspath(__file__))
+        paths_to_check.append(os.path.dirname(os.path.abspath(__file__)))
 
-    target_path = os.path.join(base_path, relative_path)
+    # 遍历所有可能的位置去搜寻
+    for base_path in paths_to_check:
+        target_path = os.path.join(base_path, relative_path)
 
-    if not os.path.exists(target_path):
+        # 精确匹配
+        if os.path.exists(target_path):
+            return target_path
+
+       
         try:
-            files = os.listdir(base_path)
-            for f in files:
+            for f in os.listdir(base_path):
                 if f.lower() == relative_path.lower():
-                    target_path = os.path.join(base_path, f)
-                    break
-        except:
-            pass
+                    return os.path.join(base_path, f)
+        except Exception:
+            continue
 
-    return target_path
+    # 如果全都没找到，返回预期路径，让后面的报错能打印出具体位置
+    if getattr(sys, 'frozen', False):
+        return os.path.join(os.path.dirname(sys.executable), relative_path)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
 
 
 def heart_function(t, shrink_ratio: float = IMAGE_ENLARGE):
@@ -144,13 +159,19 @@ class ConfessionApp:
     def __init__(self, root):
         self.root = root
 
-        # 1. 初始化并加载音乐
+        # 初始化音频，防崩溃设置
+        pygame.mixer.pre_init(44100, -16, 2, 2048)
         pygame.mixer.init()
+
+        self.music_loaded = False
         try:
-            # 确保你的音乐文件名是 love.mp3
-            pygame.mixer.music.load(resource_path("love.mp3"))
-        except Exception as e:
-            print(f"未能加载音乐文件: {e}")
+            audio_path = resource_path("love.mp3")
+            
+            if os.path.exists(audio_path):
+                pygame.mixer.music.load(audio_path)
+                self.music_loaded = True
+        except Exception:
+            pass  # 无论发生什么音频错误，都静默处理，不打扰动画
 
         self.canvas = Canvas(root, bg='black', height=CANVAS_HEIGHT, width=CANVAS_WIDTH, highlightthickness=0)
         self.canvas.pack()
@@ -175,12 +196,11 @@ class ConfessionApp:
 
     def on_enter(self, event):
         if self.state == "INTRO":
-            # 尝试播放音乐，即使失败也不要让程序崩溃
-            try:
-                if not pygame.mixer.music.get_busy():
+            if self.music_loaded and not pygame.mixer.music.get_busy():
+                try:
                     pygame.mixer.music.play(-1)
-            except pygame.error:
-                print("提示：音乐未加载成功，程序将静音运行")
+                except:
+                    pass
 
             self.state = "HEART_ONLY"
             self.animate()
@@ -194,7 +214,6 @@ class ConfessionApp:
         self.heart.render(self.canvas, self.frame)
 
         if self.state == "LOVE_FLOW":
-            # 每一帧生成 2 个，上限 350 个
             if len(self.love_messages) < 350:
                 for _ in range(2):
                     mx = random.randint(50, CANVAS_WIDTH - 50)
